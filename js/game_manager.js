@@ -10,6 +10,12 @@ function GameManager(size, InputManager, Actuator, StorageManager) {
   this.inputManager.on("restart", this.restart.bind(this));
   this.inputManager.on("keepPlaying", this.keepPlaying.bind(this));
 
+  this.randomTileValues = [];
+
+  for (var i = 0; i < 3; i++) {
+    this.randomTileValues.push(Math.random() < 0.9 ? 2 : 4);
+  }
+
   this.setup();
 }
 
@@ -28,11 +34,7 @@ GameManager.prototype.keepPlaying = function () {
 
 // Return true if the game is lost, or has won and the user hasn't kept playing
 GameManager.prototype.isGameTerminated = function () {
-  if (this.over || (this.won && !this.keepPlaying)) {
-    return true;
-  } else {
-    return false;
-  }
+  return this.over || (this.won && !this.keepPlaying);
 };
 
 // Set up the game
@@ -72,10 +74,161 @@ GameManager.prototype.addStartTiles = function () {
 // Adds a tile in a random position
 GameManager.prototype.addRandomTile = function () {
   if (this.grid.cellsAvailable()) {
-    var value = Math.random() < 0.9 ? 2 : 4;
-    var tile = new Tile(this.grid.randomAvailableCell(), value);
+    var self = this;
+    var bestCell = null;
+    var inf = 1000000;
 
-    this.grid.insertTile(tile);
+    function search(depth, grid, alpha, beta) {
+      var availableCells = grid.availableCells();
+      var nextGrid, child;
+
+      if (!availableCells || depth === 0) {
+        var result = evaluate(grid);
+        //console.log(show(grid), result, alpha, beta);
+        return result;
+      }
+
+      if (depth % 2 === 0) {
+        for (var i = 0; i < availableCells.length; i++) {
+          var tile = availableCells[i];
+          nextGrid = copyGrid(grid);
+          var tileValue = self.randomTileValues[3 - (depth / 2)];
+          nextGrid.insertTile(new Tile(tile, tileValue));
+
+          child = search(depth - 1, nextGrid, alpha, beta);
+
+          if (child >= alpha) {
+            bestCell = tile;
+            alpha = child;
+          }
+
+          if (alpha >= beta) {
+            return beta;
+          }
+        }
+
+        return alpha;
+      } else {
+        for (var dir = 0; dir < 4; dir++) {
+          nextGrid = copyGrid(grid);
+          move(nextGrid, dir);
+
+          child = search(depth - 1, nextGrid, alpha, beta);
+
+          if (child < beta) {
+            beta = child;
+          }
+
+          if (alpha >= beta) {
+            return alpha;
+          }
+        }
+
+        return beta;
+      }
+    }
+
+    function evaluate(grid) {
+      var count = 0;
+      grid.eachCell(function (x, y, tile) {
+        if (tile) {
+          count++;
+        }
+      });
+      return (16 - count);
+    }
+
+    function findFarthestPosition(grid, cell, vector) {
+      var previous;
+
+      do {
+        previous = cell;
+        cell = {x: previous.x + vector.x, y: previous.y + vector.y};
+      } while (grid.withinBounds(cell) && grid.cellAvailable(cell));
+      
+      return {farthest: previous, next: cell};
+    }
+
+    function moveTile(grid, tile, cell) {
+      grid.cells[tile.x][tile.y] = null;
+      grid.cells[cell.x][cell.y] = tile;
+      tile.updatePosition(cell);
+    }
+
+    function move(grid, dir) {
+      // 0: up, 1: right, 2: down, 3: left
+      var vector = self.getVector(dir);
+      var traversals = self.buildTraversals(vector);
+      var moved = false;
+    
+      grid.eachCell(function (x, y, tile) {
+        if (tile) {
+          tile.mergedFrom = null;
+          tile.savePosition();
+        }
+      });
+
+      traversals.x.forEach(function (x) {
+        traversals.y.forEach(function (y) {
+          cell = {x: x, y: y};
+          tile = grid.cellContent(cell);
+
+          if (tile) {
+            var positions = findFarthestPosition(grid, cell, vector);
+            var next = grid.cellContent(positions.next);
+
+            if (next && next.value === tile.value && !next.mergedFrom) {
+              var merged = new Tile(positions.next, tile.value * 2);
+              merged.mergedFrom = [tile, next];
+
+              grid.insertTile(merged);
+              grid.removeTile(tile);
+              
+              tile.updatePosition(positions.next);
+            } else {
+              moveTile(grid, tile, positions.farthest);
+            }
+
+            if (!self.positionsEqual(cell, tile)) {
+              moved = true;
+            }
+          }
+        });
+      });
+
+      return moved;
+    }
+
+    function copyGrid(grid){
+      var _grid = new Grid(grid.size, null);
+      
+      grid.eachCell(function (x, y, tile) {
+        if (tile) {
+          _grid.cells[x][y] = new Tile({x: x, y: y}, tile.value);
+        }
+      });
+
+      return _grid;
+    }
+
+    function show(grid) {
+      var str = "";
+      for (var x = 0; x < grid.size; x++) {
+        for (var y = 0; y < grid.size; y++) {
+          var val = (grid.cells[y][x]) ? grid.cells[y][x].value : " ";
+          str += "[" + val + "]";
+        }
+        str += "\n";
+      }
+      return str;
+    }
+
+    console.log(search(6, self.grid, -inf, inf));
+
+    var value = self.randomTileValues.splice(0, 1)[0];
+    var tile = new Tile(bestCell, value);
+    self.grid.insertTile(tile);
+    self.randomTileValues.push(Math.random() < 0.9 ? 2 : 4);
   }
 };
 
