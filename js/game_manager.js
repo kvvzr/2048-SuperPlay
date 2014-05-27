@@ -76,7 +76,7 @@ GameManager.prototype.addStartTiles = function () {
 GameManager.prototype.addRandomTile = function () {
   if (this.grid.cellsAvailable()) {
     var self = this;
-    var bestCell = null;
+    var bestCell = self.grid.randomAvailableCell();
     var inf = 1000000;
 
     function search(depth, grid, alpha, beta) {
