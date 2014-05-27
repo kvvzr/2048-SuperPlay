@@ -11,8 +11,9 @@ function GameManager(size, InputManager, Actuator, StorageManager) {
   this.inputManager.on("keepPlaying", this.keepPlaying.bind(this));
 
   this.randomTileValues = [];
+  this.maxDepth = 6;
 
-  for (var i = 0; i < 3; i++) {
+  for (var i = 0; i < this.maxDepth / 2; i++) {
     this.randomTileValues.push(Math.random() < 0.9 ? 2 : 4);
   }
 
@@ -84,7 +85,6 @@ GameManager.prototype.addRandomTile = function () {
 
       if (!availableCells || depth === 0) {
         var result = evaluate(grid);
-        //console.log(show(grid), result, alpha, beta);
         return result;
       }
 
@@ -92,13 +92,15 @@ GameManager.prototype.addRandomTile = function () {
         for (var i = 0; i < availableCells.length; i++) {
           var tile = availableCells[i];
           nextGrid = copyGrid(grid);
-          var tileValue = self.randomTileValues[3 - (depth / 2)];
+          var tileValue = self.randomTileValues[(self.maxDepth - depth) / 2];
           nextGrid.insertTile(new Tile(tile, tileValue));
 
           child = search(depth - 1, nextGrid, alpha, beta);
 
-          if (child >= alpha) {
-            bestCell = tile;
+          if (child > alpha) {
+            if (depth == self.maxDepth) {
+              bestCell = tile;
+            }
             alpha = child;
           }
 
@@ -223,7 +225,7 @@ GameManager.prototype.addRandomTile = function () {
       return str;
     }
 
-    console.log(search(6, self.grid, -inf, inf));
+    search(self.maxDepth, self.grid, -inf, inf);
 
     var value = self.randomTileValues.splice(0, 1)[0];
     var tile = new Tile(bestCell, value);
