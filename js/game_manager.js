@@ -113,7 +113,11 @@ GameManager.prototype.addRandomTile = function () {
       } else {
         for (var dir = 0; dir < 4; dir++) {
           nextGrid = copyGrid(grid);
-          move(nextGrid, dir);
+          var moved = move(nextGrid, dir);
+
+          if (!moved) {
+            continue;
+          }
 
           child = search(depth - 1, nextGrid, alpha, beta);
 
